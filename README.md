@@ -1,149 +1,158 @@
 # video-knowledge-ingest-skill
 
-一个面向 OpenClaw / AgentSkills 工作流的视频知识入库技能仓库。
+A video knowledge ingestion skill repository for OpenClaw / AgentSkills workflows.
 
-它解决的不是“下载一个视频”这么朴素的问题，而是更实用的那类脏活：**把跨平台视频或本地媒体，稳定地变成可沉淀到本地知识库的文本资产**。仓库当前已经实现的主流程是：
+This project is not just a "download a video" utility. It is designed for the messier and more useful real-world job: **turning cross-platform video content or local media into durable text assets that can be stored in a local knowledge base**.
 
-1. 接收远程 URL 或本地文件
-2. 优先尝试获取字幕
-3. 没有可用字幕时，自动回退到 `yt-dlp + ffmpeg + Whisper`
-4. 对转录结果生成摘要
-5. 把转录、摘要、元数据和索引写入本地知识库目录
+The current pipeline already implements the following flow:
 
-一句话概括：**字幕优先，Whisper 兜底，最后沉淀为本地可检索的知识条目。**
+1. Accept a remote URL or a local file
+2. Try subtitles first
+3. Fall back to `yt-dlp + ffmpeg + Whisper` when subtitles are unavailable
+4. Generate a summary from the transcript
+5. Save transcript, summary, metadata, and index entries into a local knowledge base
 
----
-
-## 项目简介
-
-这个仓库包含一个名为 `video-knowledge-ingest` 的 Agent Skill，以及配套脚本、参考文档和打包产物。
-
-它的目标很明确：
-
-- 统一处理 **YouTube / Bilibili / 小红书 / 本地文件** 的视频知识采集
-- 尽量优先使用平台已有字幕，减少转录成本与错误率
-- 在字幕缺失、下载不完整、平台不给面子的情况下，用本地 Whisper 转录兜底
-- 生成结构化落盘结果，便于后续检索、归档、再加工
-- 适合作为主代理或子代理里的标准“视频入库管线”使用
-
-这个仓库不是通用下载器，也不是在线视频站点的全功能爬虫。它聚焦的是：
-
-- **视频 → 文本**
-- **文本 → 摘要**
-- **结果 → 本地知识库**
-
-非常务实。没有多余花活，这反而是优点。
+In one sentence: **subtitle-first, Whisper as fallback, and finally a locally stored knowledge entry you can inspect and reuse later.**
 
 ---
 
-## 当前已实现的功能
+## Project Overview
 
-基于仓库内现有 `SKILL.md`、`video_ingest.py`、Whisper 包装脚本以及 reference 文档，当前项目已经实现这些能力：
+This repository contains an Agent Skill named `video-knowledge-ingest`, along with its supporting scripts, reference documents, and packaged distribution artifact.
 
-### 1. 统一接收多种输入源
+Its purpose is straightforward:
 
-支持两大类输入：
+- Handle video knowledge ingestion from **YouTube, Bilibili, Xiaohongshu, and local files** using a single workflow
+- Prefer platform subtitles whenever possible to reduce transcription cost and error rate
+- Fall back to local Whisper transcription when subtitles are missing, incomplete, or unavailable
+- Produce structured on-disk outputs that are easy to inspect, index, archive, and process further
+- Serve as a standard "video ingestion pipeline" for a main agent or any sub-agent
 
-- 远程 URL
+This repository is **not** a general-purpose downloader and **not** a full crawler for every video site feature. It is focused on three practical steps:
+
+- **video -> text**
+- **text -> summary**
+- **result -> local knowledge base**
+
+Pragmatic beats flashy here.
+
+---
+
+## What the Project Currently Does
+
+Based on the current repository contents (`SKILL.md`, `video_ingest.py`, Whisper wrappers, and reference documents), the project already supports the following capabilities.
+
+### 1. Accept Multiple Input Types
+
+The pipeline supports two major input categories:
+
+- Remote URLs
   - YouTube
   - Bilibili
-  - 小红书（Xiaohongshu）
-- 本地文件
-  - 本地视频 / 音频媒体文件
-  - 本地字幕文件（`.srt` / `.vtt`）
-  - 本地文本文件（`.txt` / `.md`）
+  - Xiaohongshu
+- Local files
+  - Local video / audio media files
+  - Local subtitle files (`.srt` / `.vtt`)
+  - Local text files (`.txt` / `.md`)
 
-### 2. URL 规范化
+### 2. Normalize Problematic URLs
 
-脚本会在处理前先做 URL 规范化，减少平台兼容问题：
+Before processing, the script normalizes URLs to reduce platform-specific failures.
 
 - **Bilibili**
-  - 把 `bilibili.com` / `m.bilibili.com` 统一成 `www.bilibili.com`
-  - 去掉常见 `spm_*` 跟踪参数，降低 403 或元数据获取失败概率
+  - Converts `bilibili.com` / `m.bilibili.com` into `www.bilibili.com`
+  - Removes common `spm_*` tracking parameters to reduce 403s and metadata failures
 - **YouTube**
-  - 保留有意义的时间/播放列表参数：`v`、`t`、`list`、`index`、`start`
-  - 移除常见追踪参数
+  - Preserves meaningful playback parameters such as `v`, `t`, `list`, `index`, and `start`
+  - Removes common tracking parameters
 
-### 3. 字幕优先提取
+This is not cosmetic. Shared links often contain noisy parameters, mobile hosts, or tracking junk that makes `yt-dlp` unnecessarily fragile.
 
-对远程 URL，脚本首先尝试：
+### 3. Prefer Subtitles First
 
-- 只下载字幕，不下载媒体
-- 同时尝试普通字幕和自动字幕
-- 优先语言范围：`zh.*`、`en.*`
-- 支持 `.srt` / `.vtt`
-- 自动选择“更合适”的字幕文件
+For remote URLs, the script first attempts to:
 
-字幕选择策略来自代码本身，主要考虑：
+- download subtitles without downloading the media itself
+- request both normal subtitles and auto-generated subtitles
+- prefer `zh.*` and `en.*`
+- work with `.srt` / `.vtt`
+- choose the best available subtitle file automatically
 
-- 中文优先
-- 英文次之
-- 非 auto 字幕优于 auto 字幕
-- `.srt` 优于 `.vtt`
-- 文件更大通常意味着内容更完整
+The subtitle ranking logic is based on the current code and roughly prefers:
 
-如果至少有一个可用字幕文件落地，即使某些字幕请求返回非零退出码，流程仍会继续。这一点对 429 或某一语言字幕失败的情况很重要，算是这个项目里很实用的一笔。
+- Chinese over English
+- English over other languages
+- non-auto subtitles over auto subtitles
+- `.srt` over `.vtt`
+- larger files when that likely means more complete content
 
-### 4. Whisper 转录回退
+If at least one usable subtitle file lands successfully, the pipeline continues even when another subtitle variant exits non-zero. That detail matters a lot for real-world 429 or partial subtitle failure scenarios.
 
-当没有可用字幕时，脚本会自动回退到：
+### 4. Fall Back to Whisper Transcription
 
-- 使用 `yt-dlp` 下载媒体（优先 `bestaudio/best`）
-- 用 `ffmpeg` 把输入统一转换为 16kHz 单声道 WAV
-- 调用 bundled Whisper 包装器执行本地转录
-- 优先尝试 GPU
-- GPU 失败时自动退回 CPU
+When no usable subtitles are available, the script automatically falls back to:
 
-这部分不是纸面设计，仓库里已经有完整实现：
+- downloading media with `yt-dlp`
+- converting the input into 16kHz mono WAV with `ffmpeg`
+- calling the bundled Whisper wrapper for local transcription
+- trying GPU first
+- falling back to CPU automatically if GPU transcription fails
+
+This is not theoretical. The repository already contains the working implementation:
 
 - `scripts/whisper-gpu`
 - `scripts/whisper_gpu_transcribe.py`
 
-并且输出不只是纯文本，还能生成：
+The transcription layer can output:
 
 - `.txt`
 - `.srt`
 - `.vtt`
 - `.json`
 
-在实际主流程中，`video_ingest.py` 会把 Whisper 产出的主文本复制到最终的 `transcript.txt`。
+In the main pipeline, the generated text is copied into the final `transcript.txt` used by the summary stage.
 
-### 5. 本地文本/字幕文件直接入库
+### 5. Ingest Local Subtitle and Text Files Directly
 
-对于本地输入，项目并不会一股脑走“下载 + 转录”这条笨路：
+For local inputs, the repository does not force everything through the expensive "download + transcription" path:
 
-- `.srt` / `.vtt`：直接清洗为纯文本 transcript
-- `.txt` / `.md`：直接复制为 transcript
-- 媒体文件：再走 Whisper
+- `.srt` / `.vtt`: cleaned directly into plain transcript text
+- `.txt` / `.md`: copied directly into the transcript path
+- media files: sent to Whisper
 
-这意味着它不仅能处理在线视频，也能处理你已经下载好的资产，或者人工整理过的字幕/笔记文件。
+This makes the skill useful not only for remote content but also for:
 
-### 6. 自动摘要
+- already-downloaded archives
+- local recordings and podcasts
+- manually saved subtitles
+- previously prepared text notes
 
-拿到 `transcript.txt` 后，脚本会调用：
+### 6. Generate Summaries Automatically
+
+Once `transcript.txt` exists, the script calls:
 
 - `summarize --cli codex --force-summary`
 
-生成摘要文本，并写入最终的 `summary.md`。
+The final summary is written to `summary.md`.
 
-### 7. 本地知识库落盘与索引
+### 7. Persist Everything into a Local Knowledge Base
 
-每次导入都会生成一个完整条目目录，并追加写入全局索引：
+Each ingest run creates a full item directory and appends an entry to the global index:
 
-- 单条记录目录
+- per-item directory
 - `record.json`
 - `summary.md`
 - `transcript.txt`
 - `source.info.json`
 - `index.jsonl`
 
-这意味着它不是“一次性脚本输出”，而是可持续累积的本地知识库工作流。
+This means the project is not just a one-shot script. It is a reusable, accumulating local knowledge pipeline.
 
 ---
 
-## 仓库目录结构
+## Repository Structure
 
-当前仓库主要结构如下：
+Current repository layout:
 
 ```text
 video-knowledge-ingest-skill/
@@ -163,163 +172,161 @@ video-knowledge-ingest-skill/
         └── whisper_gpu_transcribe.py
 ```
 
-### 各目录/文件说明
+### What each file or directory does
 
 #### `video-knowledge-ingest/SKILL.md`
-技能说明入口，定义：
+The skill entry point. It defines:
 
-- skill 名称与触发描述
-- 推荐使用方式
-- 标准工作流
-- 参考文档使用说明
+- the skill name and trigger description
+- recommended usage
+- the standard workflow
+- when to read the bundled reference documents
 
 #### `video-knowledge-ingest/scripts/video-ingest`
-Bash 入口脚本，负责把调用转交给 Python 主程序：
+A thin Bash entrypoint that forwards calls to the Python implementation.
 
-- 简单
-- 稳定
-- 适合作为统一入口
+It is intentionally simple and stable, making it a good canonical entrypoint.
 
 #### `video-knowledge-ingest/scripts/video_ingest.py`
-本项目核心实现，负责：
+The core implementation. It is responsible for:
 
-- 解析输入
-- 规范化 URL
-- 获取远程元数据
-- 先尝试字幕
-- 失败后下载媒体
-- 调用 Whisper
-- 调用摘要工具
-- 生成知识库条目和索引
+- parsing input
+- normalizing URLs
+- loading remote metadata
+- attempting subtitles first
+- downloading media on fallback
+- calling Whisper
+- calling the summary tool
+- generating the knowledge-base item and index entry
 
 #### `video-knowledge-ingest/scripts/whisper-gpu`
-Whisper 的运行包装器，负责：
+The Whisper runtime wrapper. It is responsible for:
 
-- 解析工作区路径
-- 定位 GPU 专用虚拟环境
-- 注入 CUDA / cuBLAS / cuDNN 所需库路径
-- 调用 Python Whisper 转录程序
+- locating the workspace root
+- locating the GPU-specific virtual environment
+- exporting CUDA / cuBLAS / cuDNN library paths
+- calling the Python Whisper transcription script
 
 #### `video-knowledge-ingest/scripts/whisper_gpu_transcribe.py`
-基于 `faster-whisper` 的本地转录实现，负责：
+The local transcription implementation based on `faster-whisper`. It is responsible for:
 
-- 用 `ffmpeg` 规范化音频
-- 调用 WhisperModel 做转录
-- 输出 TXT / SRT / VTT / JSON
-- 支持 GPU / CPU
+- normalizing audio with `ffmpeg`
+- calling `WhisperModel`
+- generating TXT / SRT / VTT / JSON outputs
+- supporting both GPU and CPU execution
 
 #### `video-knowledge-ingest/references/toolchain.md`
-对工具链和输出结构的补充说明。
+Additional documentation for the toolchain and output structure.
 
 #### `video-knowledge-ingest/references/troubleshooting.md`
-常见故障排查参考，覆盖：
+Troubleshooting notes for common failures, including:
 
-- YouTube anti-bot
-- Bilibili 403
-- 字幕部分失败
-- 小红书无字幕
-- Whisper 环境问题
-- `ffmpeg` 缺失
-- `summarize` / `codex` 认证失败
+- YouTube anti-bot issues
+- Bilibili 403s
+- partial subtitle failures
+- Xiaohongshu missing subtitles
+- Whisper environment issues
+- missing `ffmpeg`
+- `summarize` / `codex` authentication failures
 
 #### `dist/video-knowledge-ingest.skill`
-当前已打包好的 skill 分发产物。
+The packaged skill artifact ready for distribution.
 
 ---
 
-## 核心工作流
+## Core Workflow
 
-这是项目最关键的部分。没有必要把事情说得神神叨叨，真实流程就下面这条。
+This is the most important part of the project. No mysticism required; the real workflow is just this.
 
-### 流程总览
+### High-level flow
 
 ```text
-输入源（URL / 本地文件）
+Input source (URL / local file)
   ↓
-规范化与识别
+Normalize and classify
   ↓
-远程：先抓元数据
+Remote input: fetch metadata first
   ↓
-优先尝试字幕
-  ├─ 成功：字幕清洗 → transcript.txt
-  └─ 失败：下载媒体 → ffmpeg 规范化 → Whisper 转录 → transcript.txt
+Try subtitles first
+  ├─ success: clean subtitles -> transcript.txt
+  └─ failure: download media -> ffmpeg normalize -> Whisper -> transcript.txt
   ↓
-summarize 生成摘要
+Run summarize
   ↓
-写入 item 目录 + record.json + index.jsonl
+Write item directory + record.json + index.jsonl
 ```
 
-### 1. 输入识别
+### 1. Identify the input
 
-`video_ingest.py` 先判断输入是：
+`video_ingest.py` first decides whether the input is:
 
-- URL
-- 本地路径
+- a URL
+- a local path
 
-URL 走远程流程；本地路径走本地流程。
+URLs use the remote flow. Local paths use the local flow.
 
-### 2. URL 规范化
+### 2. Normalize the URL
 
-远程 URL 会先做平台适配：
+Remote URLs are normalized for platform compatibility:
 
-- Bilibili 链接修正 host，并移除 `spm_*`
-- YouTube 保留必要参数，去掉追踪参数
+- Bilibili links are converted to `www.bilibili.com` and stripped of `spm_*`
+- YouTube links keep meaningful playback parameters and drop tracking junk
 
-这样做的原因很现实：平台链接往往混着分享参数、移动端 host、追踪 query，不先清洗，后面很容易让 `yt-dlp` 吃瘪。
+This matters because real-world shared links are noisy, and noisy links make `yt-dlp` fail in boring but expensive ways.
 
-### 3. 远程元数据获取
+### 3. Fetch remote metadata
 
-通过：
+The script uses:
 
 - `yt-dlp --dump-single-json --skip-download`
 
-先拉取基础元数据，用于：
+This is used to:
 
-- 提取标题
-- 识别平台/提取器
-- 生成稳定目录名
-- 写入 `source.info.json`
+- extract the title
+- identify the platform / extractor
+- generate a stable output directory name
+- write `source.info.json`
 
-### 4. 字幕优先路径
+### 4. Subtitle-first path
 
-这是默认首选路径，因为它通常：
+This is the preferred path because it is usually:
 
-- 更快
-- 成本更低
-- 文本质量通常优于自动 ASR
-- 不需要额外转码和长时间转录
+- faster
+- cheaper
+- textually cleaner than ASR
+- less dependent on long transcription runs
 
-具体做法：
+The script:
 
-- `yt-dlp --skip-download --write-subs --write-auto-subs`
-- 语言优先 `zh.*`、`en.*`
-- 转换字幕为 `srt`
-- 如果已有可用字幕文件，则直接清洗为纯文本 transcript
+- runs `yt-dlp --skip-download --write-subs --write-auto-subs`
+- prioritizes `zh.*` and `en.*`
+- converts subtitles to `srt`
+- continues as soon as at least one usable subtitle file exists
 
-字幕清洗逻辑会移除：
+The subtitle cleaning logic removes:
 
-- 序号行
-- 时间轴行
+- numeric sequence lines
+- timeline lines
 - `WEBVTT`
 - `NOTE`
-- 某些样式/元信息行
-- HTML 标签
-- 字幕控制标记
+- style / metadata lines
+- HTML tags
+- subtitle control markers
 
-最终生成 `transcript.txt`。
+The result becomes `transcript.txt`.
 
-### 5. Whisper fallback 路径
+### 5. Whisper fallback path
 
-如果字幕不存在、不可用，或者平台天然不给字幕，小锤子就换成电钻：
+If subtitles are missing or unusable, the project switches to the heavy path:
 
-1. 下载媒体
-2. 用 `ffmpeg` 统一采样率和声道
-3. 用 `faster-whisper` 转录
-4. 优先 GPU
-5. GPU 失败自动 CPU fallback
-6. 取 Whisper 输出里的 `.txt` 作为最终 transcript
+1. download media
+2. normalize audio with `ffmpeg`
+3. transcribe with `faster-whisper`
+4. try GPU first
+5. fall back to CPU if GPU fails
+6. use the generated `.txt` as the final transcript
 
-代码里明确记录了转录来源，最终 `record.json` / `summary.md` 里能看到类似：
+The source of the final transcript is recorded clearly, so you can later see values like:
 
 - `subtitles:source.zh.vtt`
 - `subtitles:source.en.srt`
@@ -327,284 +334,284 @@ URL 走远程流程；本地路径走本地流程。
 - `whisper-cpu`
 - `text:filename.txt`
 
-这对于后续质量判断和排障很有用。
+This is useful for both debugging and downstream quality decisions.
 
-### 6. 摘要生成
+### 6. Generate the summary
 
-当 `transcript.txt` 成功生成后，脚本调用：
+Once `transcript.txt` exists, the script calls:
 
 ```bash
 summarize <transcript> --plain --cli codex --force-summary --length <preset> --timeout 5m
 ```
 
-然后将结果包成一个带头部元信息的 `summary.md`，其中包含：
+The result is wrapped into `summary.md`, which includes:
 
 - title
 - source
 - platform
-- transcript_source
-- transcript_file
-- generated_at
-- Summary 正文
+- transcript source
+- transcript file
+- generation timestamp
+- summary body
 
-### 7. 本地知识库写入
+### 7. Write the local knowledge entry
 
-每条内容都会写入一个独立目录，并追加到 `index.jsonl`。
+Each ingestion writes a dedicated item directory and appends to `index.jsonl`.
 
-默认知识库根目录：
+Default root:
 
 ```text
 /home/jason/.openclaw/workspace/knowledge/video-notes/
 ```
 
-目录命名规则大致为：
+Directory naming is roughly:
 
 ```text
 YYYY-MM-DD/<platform>-<id>-<slug>/
 ```
 
-也就是按日期分层，再放具体条目。
+This gives you a date-based structure with one directory per ingested item.
 
 ---
 
-## 外部工具说明
+## External Tools Used in This Project
 
-这个项目本质上是一个“工具编排器”。真正干活的，是下面这些外部工具；脚本负责把它们有序串起来。
+This project is fundamentally a tool orchestrator. The scripts provide structure, but the actual heavy lifting is done by the tools below.
 
 ### 1. `yt-dlp`
 
-**用途：**
+**What it is used for**
 
-- 拉取远程视频元数据
-- 获取平台字幕 / 自动字幕
-- 在无字幕时下载媒体文件
+- loading remote video metadata
+- downloading platform subtitles or auto-subtitles
+- downloading media when subtitles are not available
 
-**为什么要用它：**
+**Why it is used**
 
-- 是目前最实用、最成熟的跨平台视频提取工具之一
-- 对 YouTube / B 站 / 小红书这类站点兼容性高
-- 能直接输出结构化 metadata
-- 能分别处理“字幕下载”和“媒体下载”两条路径
+- it is one of the most mature and practical cross-platform media extraction tools available
+- it works across YouTube, Bilibili, Xiaohongshu, and many other sites
+- it can return structured metadata
+- it supports separate subtitle-first and media-download paths
 
-**在本项目中的角色：**
+**Role in this project**
 
-- 远程入口的第一站
-- 字幕优先策略的关键执行器
-- Whisper fallback 前的媒体获取器
+- first stage of the remote ingestion flow
+- key enabler of the subtitle-first strategy
+- media fetcher before Whisper fallback
 
 ### 2. `ffmpeg`
 
-**用途：**
+**What it is used for**
 
-- 将输入媒体规范化为适合语音识别的 WAV 音频
+- converting arbitrary input media into a normalized WAV format suitable for transcription
 
-**为什么要用它：**
+**Why it is used**
 
-- Whisper 对音频输入很宽容，但前置统一采样率/声道更稳定
-- 不同平台下载下来的音视频编码五花八门，直接喂识别模型容易出问题
-- `ffmpeg` 是事实标准，不用它基本是在给自己制造新宗教
+- Whisper is tolerant, but standardizing sample rate and channel layout improves reliability
+- media from different platforms comes in wildly different formats and codecs
+- `ffmpeg` is the industry standard; not using it would mostly be a creative way to invent avoidable problems
 
-**在本项目中的角色：**
+**Role in this project**
 
-- 转录前的媒体清洗与标准化层
-- `whisper_gpu_transcribe.py` 内部直接调用
+- media preprocessing layer before transcription
+- called directly by `whisper_gpu_transcribe.py`
 
 ### 3. `ffprobe`
 
-**用途：**
+**What it is used for**
 
-- 作为同套工具链的一部分，用于保证媒体探测/处理环境完整
+- part of the expected media toolchain used to ensure the environment is complete
 
-**为什么要用它：**
+**Why it is used**
 
-- 虽然主脚本中未直接显式调用 `ffprobe`，但 reference 文档把它列为必要依赖
-- 在很多音视频处理环境里，`ffmpeg` / `ffprobe` 往往成套存在
-- 缺任何一个，排障体验通常都会变得很有教育意义——而且是那种你不会喜欢的教育
+- although the main script does not explicitly call `ffprobe` in every path, it belongs to the same operational toolchain as `ffmpeg`
+- in real media-processing environments, `ffmpeg` and `ffprobe` are usually treated as a pair
+- when one is missing, debugging becomes educational in all the wrong ways
 
 ### 4. `faster-whisper`
 
-**用途：**
+**What it is used for**
 
-- 本地语音识别转录
+- local ASR transcription
 
-**为什么要用它：**
+**Why it is used**
 
-- 当平台无字幕时，必须有本地 ASR 兜底
-- `faster-whisper` 相比原始实现更适合本地实用场景
-- 支持 GPU / CPU，便于在不同机器上降级运行
+- when subtitles do not exist, the project needs a local speech-to-text fallback
+- `faster-whisper` is practical for local use
+- it supports both GPU and CPU execution
 
-**在本项目中的角色：**
+**Role in this project**
 
-- 字幕不可用时的主力兜底方案
-- 由 `whisper_gpu_transcribe.py` 直接调用 `WhisperModel`
+- main fallback path when subtitles are unavailable
+- called directly via `WhisperModel` inside `whisper_gpu_transcribe.py`
 
 ### 5. `summarize`
 
-**用途：**
+**What it is used for**
 
-- 基于 transcript 生成摘要
+- generating summaries from transcript text
 
-**为什么要用它：**
+**Why it is used**
 
-- 项目目标不是只拿到转录文本，而是进一步形成可读摘要
-- `summarize` 提供统一的摘要 CLI 接口，便于后续替换或扩展后端
+- the project goal is not just transcription; it also wants concise, reusable summaries
+- `summarize` provides a stable CLI abstraction for the summary stage
 
-**在本项目中的角色：**
+**Role in this project**
 
-- transcript 到 summary 的转换器
-- 当前配置下通过 `--cli codex` 使用 Codex 作为摘要后端
+- converts transcript text into a human-readable summary
+- currently used with `--cli codex`
 
 ### 6. `codex`
 
-**用途：**
+**What it is used for**
 
-- 作为 `summarize` 的当前摘要后端
+- the current summary backend behind `summarize`
 
-**为什么要用它：**
+**Why it is used**
 
-- 当前仓库实现里，摘要阶段明确依赖 `summarize --cli codex`
-- 所以环境里需要有已可用的 `codex`
+- the current implementation explicitly depends on `summarize --cli codex`
+- therefore the environment must have a working, authenticated `codex`
 
-### 7. Python 运行环境 / GPU venv
+### 7. Python runtime and GPU virtual environment
 
-**用途：**
+**What it is used for**
 
-- 承载 `video_ingest.py`
-- 承载基于 `faster-whisper` 的 GPU 转录
+- running `video_ingest.py`
+- hosting the Whisper GPU transcription dependencies
 
-**为什么要用它：**
+**Why it is used**
 
-- Whisper 相关依赖较重，独立 venv 更容易控环境
-- 仓库里的 `whisper-gpu` 会定位到工作区下的：
+- Whisper-related dependencies are heavy and easier to manage in an isolated virtual environment
+- the `whisper-gpu` wrapper resolves the workspace GPU venv at:
 
 ```text
 /home/jason/.openclaw/workspace/.venv-whisper-gpu
 ```
 
-- 并设置 CUDA / cuBLAS / cuDNN 的库路径
+- it also injects CUDA / cuBLAS / cuDNN library paths before running transcription
 
 ---
 
-## 平台支持
+## Platform Support
 
 ### YouTube
 
-**支持情况：** 已支持
+**Support status:** supported
 
-**典型路径：**
+**Typical path:**
 
-- 有字幕：优先字幕
-- 无字幕：下载媒体后走 Whisper
+- if subtitles exist: subtitle-first
+- if subtitles do not exist: download media and use Whisper
 
-**仓库内已有的兼容处理：**
+**Compatibility work already included:**
 
-- 清理 URL 追踪参数
-- 保留时间戳和播放列表相关参数
+- tracking parameter cleanup
+- preservation of meaningful timing and playlist parameters
 
-**已知限制：**
+**Known limitations:**
 
-- 可能遇到 anti-bot / 登录要求
-- 某些 IP 或环境下需要 cookies
+- may hit anti-bot or login-required behavior
+- some environments require cookies
 
-### Bilibili（B站）
+### Bilibili
 
-**支持情况：** 已支持
+**Support status:** supported
 
-**典型路径：**
+**Typical path:**
 
-- 先尝试字幕
-- 实际上较常回退到 Whisper
+- tries subtitles first
+- often falls back to Whisper in practice
 
-**仓库内已有的兼容处理：**
+**Compatibility work already included:**
 
-- 自动把 `bilibili.com` / `m.bilibili.com` 归一化为 `www.bilibili.com`
-- 自动移除 `spm_*` 参数
+- automatic normalization to `www.bilibili.com`
+- automatic removal of `spm_*` parameters
 
-**已知限制：**
+**Known limitations:**
 
-- 分享链接、带追踪参数链接更容易出问题
-- 某些内容的字幕能力不稳定
+- shared links and tracking-heavy links are more fragile
+- subtitle availability can be inconsistent
 
-### 小红书（Xiaohongshu）
+### Xiaohongshu
 
-**支持情况：** 已支持
+**Support status:** supported
 
-**典型路径：**
+**Typical path:**
 
-- 可拉取 metadata / 媒体
-- 多数情况没有字幕，通常走 Whisper fallback
+- metadata and media can be resolved
+- subtitles are often unavailable, so Whisper fallback is common
 
-**已知限制：**
+**Known limitations:**
 
-- “无字幕”通常是平台常态，不是脚本故障
+- missing subtitles are often normal platform behavior, not a script bug
 
-### 本地文件
+### Local files
 
-**支持情况：** 已支持
+**Support status:** supported
 
-支持类型包括：
+Supported types include:
 
-- 字幕文件：`.srt` / `.vtt`
-- 文本文件：`.txt` / `.md`
-- 媒体文件：`.mp4`、`.mkv`、`.webm`、`.mov`、`.m4v`、`.avi`、`.flv`、`.wmv`、`.mp3`、`.m4a`、`.aac`、`.wav`、`.flac`、`.ogg`、`.opus`
+- subtitle files: `.srt`, `.vtt`
+- text files: `.txt`, `.md`
+- media files: `.mp4`, `.mkv`, `.webm`, `.mov`, `.m4v`, `.avi`, `.flv`, `.wmv`, `.mp3`, `.m4a`, `.aac`, `.wav`, `.flac`, `.ogg`, `.opus`
 
-这类输入不依赖远程抓取，适合：
+This is useful for:
 
-- 已下载视频归档
-- 本地录音/播客
-- 人工保存的字幕文件
-- 先前整理过的文本资料
+- previously downloaded video archives
+- local recordings or podcasts
+- manually saved subtitle files
+- already prepared text material
 
 ---
 
-## 输出产物与本地知识库结构
+## Outputs and Local Knowledge Base Structure
 
-默认输出根目录：
+Default output root:
 
 ```text
 /home/jason/.openclaw/workspace/knowledge/video-notes/
 ```
 
-典型结构如下：
+Typical structure:
 
 ```text
 knowledge/video-notes/
   index.jsonl
   YYYY-MM-DD/
     <platform>-<id>-<slug>/
-      source.url            # 远程输入时存在
-      source.path           # 本地输入时存在
-      source.info.json      # 元数据
-      downloads/            # 远程下载得到的字幕/媒体
-      whisper/              # Whisper 输出产物
-      transcript.txt        # 最终转录文本
-      summary.md            # 摘要结果
-      record.json           # 当前条目的结构化记录
+      source.url            # exists for remote inputs
+      source.path           # exists for local inputs
+      source.info.json      # metadata
+      downloads/            # remote subtitles or media
+      whisper/              # Whisper intermediate outputs
+      transcript.txt        # final transcript
+      summary.md            # final summary
+      record.json           # structured record for this item
 ```
 
-### 各文件说明
+### What each output file means
 
 #### `source.url`
-原始或规范化后的远程地址。
+The original or normalized remote URL.
 
 #### `source.path`
-本地输入文件的绝对路径。
+The absolute local path when the input is local.
 
 #### `source.info.json`
-来源元数据：
+Source metadata:
 
-- 远程：来自 `yt-dlp --dump-single-json`
-- 本地：脚本生成的最小元信息对象
+- remote inputs: produced from `yt-dlp --dump-single-json`
+- local inputs: generated as a minimal local metadata object by the script
 
 #### `downloads/`
-保存：
+Holds:
 
-- 下载的字幕文件
-- 下载的媒体文件
-- 某些附带的 info json
+- downloaded subtitle files
+- downloaded media files
+- related metadata files
 
 #### `whisper/`
-保存 Whisper 的原始输出，如：
+Holds raw Whisper outputs such as:
 
 - `.txt`
 - `.srt`
@@ -612,13 +619,13 @@ knowledge/video-notes/
 - `.json`
 
 #### `transcript.txt`
-最终供摘要阶段使用的标准 transcript 文件。
+The standardized transcript file used by the summary stage.
 
 #### `summary.md`
-最终给人看的摘要文档，带基础元信息头。
+The final human-readable summary document with basic metadata in the header.
 
 #### `record.json`
-这次导入的结构化结果记录，典型包含：
+The structured result record for the ingest run, typically containing:
 
 - `created_at`
 - `title`
@@ -630,32 +637,32 @@ knowledge/video-notes/
 - `summary_path`
 
 #### `index.jsonl`
-全局追加式索引，每一行对应一个导入条目。适合后续：
+The append-only global index, one JSON line per ingested item. This is intended for later:
 
-- 搜索
-- 汇总
-- 再索引
-- 构建更上层知识系统
+- search
+- aggregation
+- re-indexing
+- integration into higher-level knowledge workflows
 
 ---
 
-## 使用方式
+## Usage
 
-### 入口命令
+### Main entrypoint
 
-推荐统一使用仓库内入口脚本：
+Use the repository entrypoint:
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest "<source>"
 ```
 
-如果你是在 OpenClaw workspace 技能目录上下文中调用，对应的 skill 使用形式通常是：
+Within an OpenClaw workspace skill context, the typical invocation is:
 
 ```bash
 skills/video-knowledge-ingest/scripts/video-ingest "<source>"
 ```
 
-### 远程 URL 示例
+### Remote URL examples
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest "https://www.youtube.com/watch?v=..."
@@ -663,7 +670,7 @@ video-knowledge-ingest/scripts/video-ingest "https://www.bilibili.com/video/BV..
 video-knowledge-ingest/scripts/video-ingest "https://www.xiaohongshu.com/explore/..."
 ```
 
-### 本地文件示例
+### Local file examples
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest /path/to/file.srt
@@ -671,50 +678,50 @@ video-knowledge-ingest/scripts/video-ingest /path/to/file.mp4
 video-knowledge-ingest/scripts/video-ingest /path/to/notes.txt
 ```
 
-### 常用参数
+### Common options
 
-#### 指定转录语言
+#### Specify transcription language
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest "<source>" --language zh
 ```
 
-默认是：
+Default:
 
 ```text
 zh
 ```
 
-#### 指定摘要长度
+#### Specify summary length
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest "<source>" --length long
 ```
 
-#### 指定知识库输出目录
+#### Specify a custom knowledge-base root
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest "<source>" --kb-root /some/other/root
 ```
 
-### 成功输出
+### Successful output
 
-脚本成功后会向 stdout 打印 JSON，包含本次导入的核心路径信息，例如：
+On success, the script prints JSON to stdout containing key paths such as:
 
 - `item_dir`
 - `transcript_path`
 - `summary_path`
 - `transcript_source`
 
-这对于代理流程串联很友好，机器和人都能读。
+This makes the workflow easy to chain in agent pipelines while still being human-readable.
 
 ---
 
-## 依赖与运行前提
+## Dependencies and Runtime Requirements
 
-根据仓库当前实现，运行本项目需要以下环境：
+Based on the current repository implementation, the project expects the following environment.
 
-### 必需命令行工具
+### Required CLI tools
 
 - `yt-dlp`
 - `ffmpeg`
@@ -723,251 +730,254 @@ video-knowledge-ingest/scripts/video-ingest "<source>" --kb-root /some/other/roo
 - `codex`
 - `python3`
 
-### Whisper 相关环境
+### Whisper-related environment
 
-- 工作区 GPU 虚拟环境：
+- workspace GPU virtual environment:
 
 ```text
 /home/jason/.openclaw/workspace/.venv-whisper-gpu
 ```
 
-- 该环境内需要可用：
-  - `faster-whisper`
-  - 对应 CUDA 依赖
-  - cuBLAS / cuDNN 动态库
+The environment should contain working:
 
-### PATH 相关说明
+- `faster-whisper`
+- the necessary CUDA dependencies
+- cuBLAS / cuDNN shared libraries
 
-`video_ingest.py` 在调用外部命令时，会主动把以下路径补进环境变量：
+### PATH behavior
+
+`video_ingest.py` prepends these paths when calling external commands:
 
 - `/home/jason/.local/bin`
 - `/home/jason/.npm-global/bin`
 
-所以某些本地安装的 CLI 不必恰好都在系统默认 PATH 里。
+This makes locally installed CLIs easier to resolve even when the system PATH is incomplete.
 
 ---
 
-## 常见问题与限制
+## Common Problems and Limitations
 
-### 1. YouTube 可能要求登录或 cookies
+### 1. YouTube may require login or cookies
 
-如果出现：
+If you see errors such as:
 
 - `LOGIN_REQUIRED`
-- “Sign in to confirm you're not a bot”
+- "Sign in to confirm you're not a bot"
 
-这通常不是脚本问题，而是平台访问限制。需要：
+That is usually a platform access problem, not a transcription problem. In that case you need:
 
-- 提供有效 cookies
-- 或改用本地媒体文件输入
+- valid YouTube cookies
+- or a local media file / mirror input instead
 
-### 2. 部分字幕失败不代表整次任务失败
+### 2. Partial subtitle failure does not necessarily mean total failure
 
-项目代码已经专门处理这种情况：
+The code already handles this case deliberately:
 
-- 即使某个字幕语言下载失败
-- 只要已有可用 `.srt` / `.vtt` 文件落地
-- 就会继续使用字幕路径
+- even if one subtitle variant fails
+- as long as at least one usable `.srt` / `.vtt` file exists
+- the subtitle path continues
 
-这对 HTTP 429 场景尤其重要。
+This matters especially for HTTP 429 situations.
 
-### 3. 小红书经常没有字幕
+### 3. Xiaohongshu often has no subtitles
 
-这是平台现实，不是你今天水逆。
+That is normal platform behavior, not a bad day in the pipeline.
 
-预期行为就是：
+Expected behavior:
 
-- 无字幕
-- 下载媒体
+- no subtitles
+- media download
 - Whisper fallback
 
-### 4. Whisper GPU 环境可能是最脆的环节
+### 4. The Whisper GPU environment is usually the most fragile part
 
-如果 GPU 转录失败，脚本会自动尝试 CPU fallback。
+If GPU transcription fails, the script automatically tries CPU fallback.
 
-但如果以下内容本身缺失，仍会失败：
+But if the following are missing entirely, the run can still fail:
 
 - `.venv-whisper-gpu`
 - `faster-whisper`
-- CUDA 相关库
+- CUDA-related libraries
 - `ffmpeg`
 
-### 5. 摘要阶段依赖 `summarize + codex`
+### 5. The summary stage depends on `summarize + codex`
 
-即使 transcript 成功，如果摘要后端不可用，也不会得到完整最终产物。
+Even if transcription succeeds, the final pipeline is not complete if the summary backend fails.
 
-要检查：
+Check:
 
-- `summarize` 是否安装
-- `codex` 是否可用并已登录
+- whether `summarize` is installed and usable
+- whether `codex` is installed and authenticated
 
-### 6. 不是所有平台问题都能靠脚本完全规避
+### 6. Not every platform problem can be solved purely in code
 
-该项目已经做了一些平台兼容处理，但它仍然依赖第三方平台行为，例如：
+The repository includes real compatibility work, but it still depends on third-party platform behavior such as:
 
-- 页面结构变化
-- 登录策略变化
-- 反爬限制
-- 区域限制
+- site structure changes
+- login policy changes
+- anti-bot systems
+- region restrictions
 
-所以它是“尽可能稳”，不是“神迹保证”。
+So the project aims to be **robust**, not miraculous.
 
 ---
 
-## 开发、打包与验证
+## Development, Packaging, and Validation
 
-这个仓库已经包含源码与打包产物，适合继续迭代。
+This repository already includes source code and a packaged artifact, and it is intended to be iterated further.
 
-### 1. 开发时优先改这些文件
+### 1. Main files to edit during development
 
-核心逻辑：
+Core logic:
 
 - `video-knowledge-ingest/scripts/video_ingest.py`
 - `video-knowledge-ingest/scripts/whisper_gpu_transcribe.py`
 - `video-knowledge-ingest/scripts/whisper-gpu`
 
-说明文档：
+Documentation:
 
 - `video-knowledge-ingest/SKILL.md`
 - `video-knowledge-ingest/references/toolchain.md`
 - `video-knowledge-ingest/references/troubleshooting.md`
 
-### 2. 基础验证建议
+### 2. Recommended basic smoke tests
 
-至少做这些 smoke tests：
+At minimum, run these:
 
-#### 本地字幕文件测试
+#### Local subtitle file
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest /path/to/test.srt
 ```
 
-验证：
+Verify:
 
-- 能生成 `transcript.txt`
-- 能生成 `summary.md`
-- 能写入 `record.json`
-- 能追加 `index.jsonl`
+- `transcript.txt` is generated
+- `summary.md` is generated
+- `record.json` is written
+- `index.jsonl` is appended
 
-#### 本地文本文件测试
+#### Local text file
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest /path/to/test.txt
 ```
 
-验证：
+Verify:
 
-- 文本是否被直接复用为 transcript
-- 摘要是否正常生成
+- the text is reused directly as transcript
+- the summary is generated correctly
 
-#### 本地媒体文件测试
+#### Local media file
 
 ```bash
 video-knowledge-ingest/scripts/video-ingest /path/to/test.mp4
 ```
 
-验证：
+Verify:
 
-- Whisper GPU 是否可用
-- GPU 失败时 CPU fallback 是否可用
-- `whisper/` 是否产出中间文件
+- Whisper GPU works
+- CPU fallback works when GPU fails
+- `whisper/` contains intermediate outputs
 
-#### 远程 URL 测试
+#### Remote URL tests
 
-分别测：
+Test at least:
 
-- 一个有字幕的 YouTube 视频
-- 一个 B 站视频
-- 一个小红书视频
+- one YouTube video with subtitles
+- one Bilibili video
+- one Xiaohongshu video
 
-验证：
+Verify:
 
-- URL 规范化是否生效
-- 字幕优先路径是否生效
-- 无字幕时是否正确 fallback
+- URL normalization works
+- subtitle-first behavior works where expected
+- no-subtitle fallback works where expected
 
-### 3. 打包 skill
+### 3. Package the skill
 
-如果要重新生成 skill 包，按 skill 规范通常使用打包脚本：
+To regenerate the packaged artifact, use the packaging script:
 
 ```bash
 scripts/package_skill.py /path/to/video-knowledge-ingest
 ```
 
-产出会是 `.skill` 文件。当前仓库里已经有一个现成产物：
+The current repository already includes one packaged artifact:
 
 ```text
 dist/video-knowledge-ingest.skill
 ```
 
-### 4. 验证打包结果
+### 4. Validate the package result
 
-建议检查：
+Recommended checks:
 
-- `SKILL.md` frontmatter 是否有效
-- `scripts/`、`references/` 是否都被包含
-- 没有引入 symlink
-- 打包后入口路径是否仍正确
+- `SKILL.md` frontmatter is valid
+- `scripts/` and `references/` are included
+- no symlinks were introduced
+- entrypoint paths still work after packaging
 
-### 5. 调试顺序建议
+### 5. Recommended debugging order
 
-如果某次导入失败，不要一上来就怀疑摘要模型或者 Whisper。按这个顺序查：
+When an ingest run fails, do not immediately blame the summary model or Whisper. Check in this order:
 
-1. 是否成功创建 item 目录
-2. `source.info.json` 是否存在
-3. `downloads/` 是否有字幕或媒体
-4. `whisper/` 是否有输出
-5. `transcript.txt` 是否为空
-6. `summary.md` 是否生成
-7. `record.json` / `index.jsonl` 是否写入
+1. Was the item directory created?
+2. Does `source.info.json` exist?
+3. Does `downloads/` contain subtitles or media?
+4. Does `whisper/` contain outputs?
+5. Is `transcript.txt` empty?
+6. Was `summary.md` generated?
+7. Were `record.json` and `index.jsonl` updated?
 
-这比“凭感觉 debug”有效得多。后者通常只会产生更多感觉。
-
----
-
-## 适用场景
-
-这个项目特别适合这些场景：
-
-- 把视频内容沉淀到本地知识库
-- 给代理链路提供统一的视频转文本入口
-- 处理多平台内容而不想每个平台写一套脚本
-- 先拿字幕，必要时再跑 ASR，降低成本
-- 对已经下载好的本地媒体/字幕做二次整理
+This is far better than debugging by vibes. The latter mainly produces more vibes.
 
 ---
 
-## 不在当前实现里的能力
+## Good Use Cases
 
-为了避免 README 开始虚构文学，这里也明确一下：根据当前仓库内容，**没有看到**以下能力的实现证据，因此不应当把它们当成已支持功能：
+This project is especially useful when you want to:
 
-- 视频内容向量化 / embedding 入库
-- 全文检索服务端
-- 自动标签提取
-- 多语言自动翻译输出
-- 批量任务队列 / 并发调度
-- Web UI
-- 数据库后端存储
-- 自动发布到外部平台
-
-仓库当前的核心是：**单条输入的稳健入库流水线**。
+- store video content in a local knowledge base
+- give agents a standard video-to-text entrypoint
+- handle multiple platforms without building a separate script for each one
+- prefer subtitles first and only pay the ASR cost when necessary
+- process already-downloaded media or subtitles in a clean, structured way
 
 ---
 
-## 小结
+## What Is Not Implemented Yet
 
-`video-knowledge-ingest-skill` 的价值，不在于它“做了很多炫技功能”，而在于它把最常见、最烦人的视频知识入库问题收敛成了一条可复用的管线：
+To avoid README fiction, here are capabilities that are **not** represented by the current repository implementation and should not be claimed as already supported:
 
-- 跨平台输入
-- 字幕优先
-- Whisper 兜底
-- 自动摘要
-- 本地结构化落盘
+- vector embeddings / embedding-based retrieval
+- full-text search backend service
+- automatic tag extraction
+- multilingual translation output
+- task queues or batch schedulers
+- web UI
+- database-backed storage
+- automatic publishing to external platforms
 
-它已经是一个相当清晰、可运行、可继续扩展的基础设施型 skill。想继续做强，下一步通常会是：
+The current core is: **a robust single-item ingestion pipeline into a local file-based knowledge base**.
 
-- 增强批量处理能力
-- 增强摘要/结构化提取能力
-- 增强索引与检索层
+---
 
-但那是下一阶段的事。当前这套实现，已经足够把“视频内容变成本地知识”这件事干得像样，而不是像一团即兴脚本事故现场。
+## Summary
+
+The value of `video-knowledge-ingest-skill` is not that it tries to do everything. Its value is that it turns one of the most common and annoying media knowledge tasks into a reusable pipeline:
+
+- cross-platform input
+- subtitle-first processing
+- Whisper fallback
+- automatic summary generation
+- structured local persistence
+
+It is already a clear, runnable, and extensible infrastructure-style skill.
+
+The next stage, if needed, would usually involve:
+
+- stronger batch processing
+- richer structured extraction
+- indexing and retrieval layers
+
+That is for later. Right now, the current implementation already does the main job well: **turn video content into local knowledge instead of leaving it as a pile of one-off scripts and forgotten links.**

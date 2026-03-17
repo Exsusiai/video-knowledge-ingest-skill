@@ -100,7 +100,7 @@ When no usable subtitles are available, the script automatically falls back to:
 
 This is not theoretical. The repository already contains the working implementation:
 
-- `scripts/whisper-gpu`
+- `scripts/whisper-gpu.sh`
 - `scripts/whisper_gpu_transcribe.py`
 
 The transcription layer can output:
@@ -182,7 +182,7 @@ The skill entry point. It defines:
 - the standard workflow
 - when to read the bundled reference documents
 
-#### `video-knowledge-ingest/scripts/video-ingest`
+#### `video-knowledge-ingest/scripts/video-ingest.sh`
 A thin Bash entrypoint that forwards calls to the Python implementation.
 
 It is intentionally simple and stable, making it a good canonical entrypoint.
@@ -199,7 +199,7 @@ The core implementation. It is responsible for:
 - calling the summary tool
 - generating the knowledge-base item and index entry
 
-#### `video-knowledge-ingest/scripts/whisper-gpu`
+#### `video-knowledge-ingest/scripts/whisper-gpu.sh`
 The Whisper runtime wrapper. It is responsible for:
 
 - locating the workspace root
@@ -330,7 +330,7 @@ The source of the final transcript is recorded clearly, so you can later see val
 
 - `subtitles:source.zh.vtt`
 - `subtitles:source.en.srt`
-- `whisper-gpu`
+- `whisper-gpu.sh`
 - `whisper-cpu`
 - `text:filename.txt`
 
@@ -482,7 +482,7 @@ This project is fundamentally a tool orchestrator. The scripts provide structure
 **Why it is used**
 
 - Whisper-related dependencies are heavy and easier to manage in an isolated virtual environment
-- the `whisper-gpu` wrapper resolves the workspace GPU venv at:
+- the `whisper-gpu.sh` wrapper resolves the workspace GPU venv at:
 
 ```text
 /home/jason/.openclaw/workspace/.venv-whisper-gpu
@@ -653,29 +653,29 @@ The append-only global index, one JSON line per ingested item. This is intended 
 Use the repository entrypoint:
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest "<source>"
+video-knowledge-ingest/scripts/video-ingest.sh "<source>"
 ```
 
 Within an OpenClaw workspace skill context, the typical invocation is:
 
 ```bash
-skills/video-knowledge-ingest/scripts/video-ingest "<source>"
+skills/video-knowledge-ingest/scripts/video-ingest.sh "<source>"
 ```
 
 ### Remote URL examples
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest "https://www.youtube.com/watch?v=..."
-video-knowledge-ingest/scripts/video-ingest "https://www.bilibili.com/video/BV..."
-video-knowledge-ingest/scripts/video-ingest "https://www.xiaohongshu.com/explore/..."
+video-knowledge-ingest/scripts/video-ingest.sh "https://www.youtube.com/watch?v=..."
+video-knowledge-ingest/scripts/video-ingest.sh "https://www.bilibili.com/video/BV..."
+video-knowledge-ingest/scripts/video-ingest.sh "https://www.xiaohongshu.com/explore/..."
 ```
 
 ### Local file examples
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest /path/to/file.srt
-video-knowledge-ingest/scripts/video-ingest /path/to/file.mp4
-video-knowledge-ingest/scripts/video-ingest /path/to/notes.txt
+video-knowledge-ingest/scripts/video-ingest.sh /path/to/file.srt
+video-knowledge-ingest/scripts/video-ingest.sh /path/to/file.mp4
+video-knowledge-ingest/scripts/video-ingest.sh /path/to/notes.txt
 ```
 
 ### Common options
@@ -683,7 +683,7 @@ video-knowledge-ingest/scripts/video-ingest /path/to/notes.txt
 #### Specify transcription language
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest "<source>" --language zh
+video-knowledge-ingest/scripts/video-ingest.sh "<source>" --language zh
 ```
 
 Default:
@@ -695,13 +695,13 @@ zh
 #### Specify summary length
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest "<source>" --length long
+video-knowledge-ingest/scripts/video-ingest.sh "<source>" --length long
 ```
 
 #### Specify a custom knowledge-base root
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest "<source>" --kb-root /some/other/root
+video-knowledge-ingest/scripts/video-ingest.sh "<source>" --kb-root /some/other/root
 ```
 
 ### Successful output
@@ -832,7 +832,7 @@ Core logic:
 
 - `video-knowledge-ingest/scripts/video_ingest.py`
 - `video-knowledge-ingest/scripts/whisper_gpu_transcribe.py`
-- `video-knowledge-ingest/scripts/whisper-gpu`
+- `video-knowledge-ingest/scripts/whisper-gpu.sh`
 
 Documentation:
 
@@ -847,7 +847,7 @@ At minimum, run these:
 #### Local subtitle file
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest /path/to/test.srt
+video-knowledge-ingest/scripts/video-ingest.sh /path/to/test.srt
 ```
 
 Verify:
@@ -860,7 +860,7 @@ Verify:
 #### Local text file
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest /path/to/test.txt
+video-knowledge-ingest/scripts/video-ingest.sh /path/to/test.txt
 ```
 
 Verify:
@@ -871,7 +871,7 @@ Verify:
 #### Local media file
 
 ```bash
-video-knowledge-ingest/scripts/video-ingest /path/to/test.mp4
+video-knowledge-ingest/scripts/video-ingest.sh /path/to/test.mp4
 ```
 
 Verify:

@@ -10,7 +10,7 @@ Use this skill as the default cross-platform video → transcript → summary �
 ## Quick start
 
 1. Run the bundled entrypoint:
-   - `skills/video-knowledge-ingest/scripts/video-ingest "<url-or-local-file>"`
+   - `skills/video-knowledge-ingest/scripts/video-ingest.sh "<url-or-local-file>"`
 2. Read the JSON stdout for paths.
 3. Send the summary back to the user from `summary.md`.
 4. Keep the stored files in the local knowledge base; do not move them unless asked.
@@ -23,7 +23,7 @@ Default knowledge-base root:
 Core tools in the normal path:
 - `yt-dlp` — resolve metadata, fetch subtitles, or download media
 - `ffmpeg` / `ffprobe` — normalize audio before transcription
-- bundled `scripts/whisper-gpu` — local Whisper transcription using the workspace GPU venv
+- bundled `scripts/whisper-gpu.sh` — local Whisper transcription using the workspace GPU venv
 - `summarize --cli codex` — generate the final written summary
 - local filesystem — persist transcript, summary, metadata, and index entries
 
@@ -53,7 +53,7 @@ Platform-specific notes:
 
 If no usable subtitles land:
 - Download best audio/media with `yt-dlp`
-- Transcribe with bundled `scripts/whisper-gpu`
+- Transcribe with bundled `scripts/whisper-gpu.sh`
 - If GPU transcription fails, the script falls back to CPU automatically
 
 ### 4. Summarize
@@ -77,20 +77,20 @@ For each ingested item, keep these files:
 
 Remote URL:
 ```bash
-skills/video-knowledge-ingest/scripts/video-ingest "https://www.youtube.com/watch?v=..."
-skills/video-knowledge-ingest/scripts/video-ingest "https://bilibili.com/video/BV..."
-skills/video-knowledge-ingest/scripts/video-ingest "https://www.xiaohongshu.com/explore/..."
+skills/video-knowledge-ingest/scripts/video-ingest.sh "https://www.youtube.com/watch?v=..."
+skills/video-knowledge-ingest/scripts/video-ingest.sh "https://bilibili.com/video/BV..."
+skills/video-knowledge-ingest/scripts/video-ingest.sh "https://www.xiaohongshu.com/explore/..."
 ```
 
 Local files:
 ```bash
-skills/video-knowledge-ingest/scripts/video-ingest /path/to/file.srt
-skills/video-knowledge-ingest/scripts/video-ingest /path/to/file.mp4
+skills/video-knowledge-ingest/scripts/video-ingest.sh /path/to/file.srt
+skills/video-knowledge-ingest/scripts/video-ingest.sh /path/to/file.mp4
 ```
 
 Custom output root:
 ```bash
-skills/video-knowledge-ingest/scripts/video-ingest "<source>" --kb-root /some/other/root
+skills/video-knowledge-ingest/scripts/video-ingest.sh "<source>" --kb-root /some/other/root
 ```
 
 ## When to read bundled references
@@ -110,7 +110,7 @@ Read `references/troubleshooting.md` when you hit:
 
 ## Operating rules
 
-- Prefer the bundled `scripts/video-ingest` entrypoint over re-implementing the workflow.
+- Prefer the bundled `scripts/video-ingest.sh` entrypoint over re-implementing the workflow.
 - Do not skip the local knowledge-base write unless explicitly asked.
 - When a run fails, inspect the generated directory before declaring total failure; partial artifacts often explain the real issue.
 - If a platform provides subtitles, prefer them over Whisper.

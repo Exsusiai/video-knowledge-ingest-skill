@@ -3,13 +3,13 @@
 ## Pipeline overview
 
 The bundled entrypoint is:
-- `skills/video-knowledge-ingest/scripts/video-ingest`
+- `skills/video-knowledge-ingest/scripts/video-ingest.sh`
 
 It calls:
 - `scripts/video_ingest.py` inside this skill
 - `yt-dlp`
 - `ffmpeg` / `ffprobe`
-- bundled `scripts/whisper-gpu`
+- bundled `scripts/whisper-gpu.sh`
 - `summarize --cli codex`
 
 ## Dependency checklist
@@ -23,7 +23,7 @@ Required runtime tools:
 
 Required local environment for Whisper:
 - workspace venv: `/home/jason/.openclaw/workspace/.venv-whisper-gpu`
-- bundled wrapper: `skills/video-knowledge-ingest/scripts/whisper-gpu`
+- bundled wrapper: `skills/video-knowledge-ingest/scripts/whisper-gpu.sh`
 - bundled transcriber: `skills/video-knowledge-ingest/scripts/whisper_gpu_transcribe.py`
 
 ## Default storage layout

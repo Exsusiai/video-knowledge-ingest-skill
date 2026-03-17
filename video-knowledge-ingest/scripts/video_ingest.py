@@ -19,7 +19,7 @@ WORKSPACE = SKILL_ROOT.parents[1]
 DEFAULT_KB_ROOT = WORKSPACE / 'knowledge' / 'video-notes'
 YTDLP = shutil.which('yt-dlp') or '/home/jason/.local/bin/yt-dlp'
 SUMMARIZE = shutil.which('summarize') or '/home/jason/.local/bin/summarize'
-WHISPER = str(SKILL_ROOT / 'scripts' / 'whisper-gpu')
+WHISPER = str(SKILL_ROOT / 'scripts' / 'whisper-gpu.sh')
 
 MEDIA_EXTS = {
     '.mp4', '.mkv', '.webm', '.mov', '.m4v', '.avi', '.flv', '.wmv', '.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus'
@@ -162,7 +162,7 @@ def transcribe_media(media_path: Path, item_dir: Path, language: str | None) -> 
     if language:
         base_cmd += ['--language', language]
 
-    backend = 'whisper-gpu'
+    backend = 'whisper-gpu.sh'
     try:
         run(base_cmd, capture=True)
     except Exception:

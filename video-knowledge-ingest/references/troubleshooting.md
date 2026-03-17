@@ -56,7 +56,7 @@ What to do:
 ## 5. Whisper GPU venv missing or broken
 
 Symptoms:
-- `skills/video-knowledge-ingest/scripts/whisper-gpu` exits early
+- `skills/video-knowledge-ingest/scripts/whisper-gpu.sh` exits early
 - CUDA / cuBLAS / cuDNN import issues
 - `faster_whisper` errors
 
